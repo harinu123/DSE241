@@ -1,164 +1,161 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-from vega_datasets import data  # For world map background
+from vega_datasets import data  # For a simple world map background
 
 @st.cache_data
 def load_data():
-    # Load the JSON data
+    # Load the JSON data (put olympics.json in the same folder)
     df = pd.read_json("olympics.json")
     return df
 
 def main():
+    # Set the page config
     st.set_page_config(page_title="Winter Olympics Explorer", layout="wide")
     st.title("Winter Olympics Medal Explorer (1924 – 2006)")
 
-    # -------------------------------------------------------------------
-    # 1) DATA LOADING & SIDEBAR FILTERS
-    # -------------------------------------------------------------------
+    # -----------------------------------------------------
+    # 1) Load data & create sidebar filters
+    # -----------------------------------------------------
     df = load_data()
 
-    st.sidebar.header("Data Filters")
-    
-    # Year selection
+    st.sidebar.header("1) Data Filters")
+
     all_years = sorted(df["Year"].unique())
+    # Year range slider
     min_year, max_year = st.sidebar.select_slider(
         "Select Year Range:",
         options=all_years,
         value=(min(all_years), max(all_years))
     )
 
-    # Sport selection
-    sports = sorted(df["Sport"].unique())
+    # Sports
+    all_sports = sorted(df["Sport"].unique())
     selected_sports = st.sidebar.multiselect(
         "Select Sports:",
-        options=sports,
-        default=sports
+        options=all_sports,
+        default=all_sports
     )
 
-    # Country selection
-    countries = sorted(df["Country"].unique())
+    # Countries
+    all_countries = sorted(df["Country"].unique())
     selected_countries = st.sidebar.multiselect(
         "Select Countries:",
-        options=countries,
-        default=countries
+        options=all_countries,
+        default=all_countries
     )
 
-    # Gender selection
-    gender_options = ["M", "W", "X"]
+    # Genders
+    all_genders = ["M", "W", "X"]
     selected_genders = st.sidebar.multiselect(
         "Select Genders:",
-        options=gender_options,
-        default=gender_options
+        options=all_genders,
+        default=all_genders
     )
 
-    # Filter the DataFrame
-    filtered_df = df[
-        (df["Year"] >= min_year) & 
-        (df["Year"] <= max_year) &
-        (df["Sport"].isin(selected_sports)) &
-        (df["Country"].isin(selected_countries)) &
-        (df["Gender"].isin(selected_genders))
+    # Filter in Python (no Altair signals)
+    df_filtered = df[
+        (df["Year"] >= min_year)
+        & (df["Year"] <= max_year)
+        & (df["Sport"].isin(selected_sports))
+        & (df["Country"].isin(selected_countries))
+        & (df["Gender"].isin(selected_genders))
     ]
-    st.sidebar.markdown(f"**Records after filtering:** {len(filtered_df)}")
 
-    # -------------------------------------------------------------------
-    # 2) AGGREGATED DATA
-    # -------------------------------------------------------------------
-    # A) Total medals by year
-    total_medals_by_year = (
-        filtered_df
+    st.sidebar.markdown(f"**Records after filtering:** {len(df_filtered)}")
+
+    # -----------------------------------------------------
+    # 2) AGGREGATIONS FOR CHARTS
+    # -----------------------------------------------------
+    # A) Area Chart: total medals by year
+    total_by_year = (
+        df_filtered
         .groupby("Year")
         .size()
         .reset_index(name="TotalMedals")
     )
 
-    # B) Medal distribution by year & type
+    # B) Stacked Bar: medal distribution by year & medal type
     medal_distribution = (
-        filtered_df
+        df_filtered
         .groupby(["Year","Medal"])
         .size()
         .reset_index(name="Count")
     )
 
-    # C) Country vs. year medal counts (for bubble chart)
-    medal_by_year_country = (
-        filtered_df
-        .groupby(["Year", "Country"])
+    # C) Bubble Chart: (Year vs Country), sized by # of medals
+    year_country_medals = (
+        df_filtered
+        .groupby(["Year","Country"])
         .size()
         .reset_index(name="MedalsWon")
     )
 
-    # D) Breakdown by (Year, Country, Medal)
-    breakdown_src = (
-        filtered_df
-        .groupby(["Year","Country","Medal"])
-        .size()
-        .reset_index(name="NumMedals")
-    )
-
-    # E) City summary for map (host city, lat, lon, year)
+    # D) Host City Summaries
     city_summary = (
-        filtered_df
+        df_filtered
         .groupby(["Year","City","Latitude","Longitude"])
         .size()
         .reset_index(name="CityMedals")
     )
 
-    # -------------------------------------------------------------------
-    # 3) INTERACTIVE AREA CHART (Brush) + STACKED BAR + MAP
-    # -------------------------------------------------------------------
-    st.subheader("1) Interactive Medal Counts over Time (Brushing to Filter)")
+    # E) Medal Breakdown – but we won't do an in-chart selection.  
+    #    Instead, the user picks a single (Year, Country) in the sidebar.
+    breakdown_full = (
+        df_filtered
+        .groupby(["Year","Country","Medal"])
+        .size()
+        .reset_index(name="NumMedals")
+    )
 
-    # Interval brush along x-axis
-    year_brush = alt.selection_interval(encodings=["x"])
+    # -----------------------------------------------------
+    # 3) Layout: Area Chart & Stacked Bar
+    # -----------------------------------------------------
+    st.subheader("2) Total Medals Over Time (Area Chart)")
 
-    # AREA CHART: total medals by year
+    # AREA CHART
     area_chart = (
-        alt.Chart(total_medals_by_year)
+        alt.Chart(total_by_year)
         .mark_area(opacity=0.6)
         .encode(
-            x=alt.X("Year:O", title="Year", sort=all_years),
+            x=alt.X("Year:O", sort=all_years, title="Year"),
             y=alt.Y("TotalMedals:Q", title="Total Medals"),
             tooltip=[
                 alt.Tooltip("Year:O"),
                 alt.Tooltip("TotalMedals:Q")
             ]
         )
-        .add_selection(year_brush)
-        .properties(width=500, height=250)
+        .properties(width=600, height=300)
     )
+    st.altair_chart(area_chart, use_container_width=True)
 
-    # STACKED BAR: medal distribution (filtered by brush)
-    distribution_chart = (
+    st.subheader("3) Medal Distribution by Year (Stacked Bar)")
+    stacked_bar = (
         alt.Chart(medal_distribution)
         .mark_bar()
         .encode(
-            x=alt.X("Year:O", title="Year", sort=all_years),
+            x=alt.X("Year:O", sort=all_years, title="Year"),
             y=alt.Y("Count:Q", stack="normalize", title="Proportion of Medals"),
-            color=alt.Color("Medal:N", legend=alt.Legend(title="Medal Type")),
+            color=alt.Color("Medal:N", legend=alt.Legend(title="Medal")),
             tooltip=[
                 alt.Tooltip("Year:O"),
                 alt.Tooltip("Medal:N"),
                 alt.Tooltip("Count:Q")
             ]
         )
-        .transform_filter(year_brush)
-        .properties(width=500, height=250)
+        .properties(width=600, height=300)
     )
+    st.altair_chart(stacked_bar, use_container_width=True)
 
-    col1, col2 = st.columns([1,1])
-    with col1:
-        st.altair_chart(area_chart, use_container_width=True)
-    with col2:
-        st.altair_chart(distribution_chart, use_container_width=True)
+    # -----------------------------------------------------
+    # 4) HOST CITY MAP
+    # -----------------------------------------------------
+    st.subheader("4) Host City Map")
 
-    # MAP (filtered by brush)
-    st.subheader("2) Host City Map (Filtered by Brushed Years)")
-    world_map = alt.topo_feature(data.world_110m.url, feature='countries')
-
+    # We'll just plot all filtered host cities. (No brushing)
+    world = alt.topo_feature(data.world_110m.url, feature="countries")
     base_map = (
-        alt.Chart(world_map)
+        alt.Chart(world)
         .mark_geoshape(fill="lightgray", stroke="white")
         .properties(width=700, height=400)
         .project("naturalEarth1")
@@ -177,28 +174,22 @@ def main():
                 alt.Tooltip("CityMedals:Q")
             ]
         )
-        .transform_filter(year_brush)
     )
-
     city_map = base_map + city_points
     st.altair_chart(city_map, use_container_width=True)
 
-    # -------------------------------------------------------------------
-    # 4) BUBBLE CHART (Year vs. Country) + SINGLE SELECTION → BREAKDOWN
-    # -------------------------------------------------------------------
-    st.subheader("3) Bubble Chart (Year vs. Country)")
+    # -----------------------------------------------------
+    # 5) BUBBLE CHART (Year vs Country)
+    # -----------------------------------------------------
+    st.subheader("5) Bubble Chart of (Year vs. Country)")
 
-    # Single selection (no name=..., no param references)
-    single_select = alt.selection_single(fields=["Year","Country"], empty="none")
-
-    # Bubble chart
     bubble_chart = (
-        alt.Chart(medal_by_year_country)
+        alt.Chart(year_country_medals)
         .mark_circle()
         .encode(
-            x=alt.X("Year:O", title="Year", sort=all_years),
+            x=alt.X("Year:O", sort=all_years, title="Year"),
             y=alt.Y("Country:N", sort=alt.SortField("Country", order="ascending")),
-            size=alt.Size("MedalsWon:Q", legend=alt.Legend(title="Medals"), scale=alt.Scale(range=[0,1000])),
+            size=alt.Size("MedalsWon:Q", scale=alt.Scale(range=[0,1000])),
             color=alt.Color("MedalsWon:Q", scale=alt.Scale(scheme="blues"), legend=None),
             tooltip=[
                 alt.Tooltip("Year:O"),
@@ -206,22 +197,45 @@ def main():
                 alt.Tooltip("MedalsWon:Q")
             ]
         )
-        .add_selection(single_select)
         .properties(width=700, height=400)
     )
-
-    st.write("**Click a bubble to see that (year, country)'s medal breakdown.**")
     st.altair_chart(bubble_chart, use_container_width=True)
 
-    # Breakdown bar chart
-    st.subheader("4) Medal Breakdown for Selected Bubble")
+    # -----------------------------------------------------
+    # 6) Medal Breakdown (Year + Country from Sidebar)
+    # -----------------------------------------------------
+    # Instead of an Altair-based single_select, let the user pick from a dropdown.
+    st.subheader("6) Medal Breakdown for a Selected (Year, Country)")
+    col_a, col_b = st.columns(2)
+
+    with col_a:
+        # Year selection
+        possible_years = sorted(df_filtered["Year"].unique())
+        selected_breakdown_year = st.selectbox(
+            "Select Year for Breakdown:",
+            options=possible_years
+        )
+
+    with col_b:
+        # Country selection
+        possible_countries = sorted(df_filtered["Country"].unique())
+        selected_breakdown_country = st.selectbox(
+            "Select Country for Breakdown:",
+            options=possible_countries
+        )
+
+    # Filter breakdown data
+    breakdown_filtered = breakdown_full[
+        (breakdown_full["Year"] == selected_breakdown_year) &
+        (breakdown_full["Country"] == selected_breakdown_country)
+    ]
 
     breakdown_chart = (
-        alt.Chart(breakdown_src)
+        alt.Chart(breakdown_filtered)
         .mark_bar()
         .encode(
-            x=alt.X("Medal:N", title="Medal", sort=["Gold","Silver","Bronze"]),
-            y=alt.Y("NumMedals:Q", title="Number of Medals"),
+            x=alt.X("Medal:N", sort=["Gold","Silver","Bronze"]),
+            y=alt.Y("NumMedals:Q"),
             color=alt.Color("Medal:N", legend=None),
             tooltip=[
                 alt.Tooltip("Year:O"),
@@ -230,31 +244,21 @@ def main():
                 alt.Tooltip("NumMedals:Q")
             ]
         )
-        .transform_filter(single_select)
         .properties(width=300, height=300)
     )
 
     st.altair_chart(breakdown_chart, use_container_width=False)
 
-    # -------------------------------------------------------------------
-    # 5) DATA TABLE
-    # -------------------------------------------------------------------
+    # -----------------------------------------------------
+    # 7) Data Table
+    # -----------------------------------------------------
     with st.expander("View Filtered Data Table"):
-        st.write("Raw data after applying the filters:")
-        st.dataframe(filtered_df)
+        st.dataframe(df_filtered)
 
     st.markdown("---")
-    st.markdown(
-        "**Tips:**\n"
-        "1. **Brush** across the area chart to select a range of years → updates the stacked bar & map.\n"
-        "2. **Click** a bubble in the bubble chart to filter the breakdown bar.\n"
-        "3. If 'Unrecognized signal name' errors persist, try:\n"
-        "   ```bash\n"
-        "   pip install --upgrade altair==4.2.2\n"
-        "   # or\n"
-        "   pip install --upgrade altair==5.0.1\n"
-        "   ```"
-    )
+    # st.markdown(
+        
+    # )
 
 if __name__ == "__main__":
     main()
