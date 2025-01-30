@@ -1,97 +1,86 @@
 import streamlit as st
 import pandas as pd
-import altair as alt
-from vega_datasets import data  # For a simple world map background
+import plotly.express as px
+from streamlit_plotly_events import plotly_events
 
 @st.cache_data
 def load_data():
-    # Load the JSON data (put olympics.json in the same folder)
+    # Load the JSON data
     df = pd.read_json("olympics.json")
     return df
 
 def main():
-    # Set the page config
-    st.set_page_config(page_title="Winter Olympics Explorer", layout="wide")
-    st.title("Winter Olympics Medal Explorer (1924 – 2006)")
+    st.set_page_config(page_title="Winter Olympics Explorer (Plotly)", layout="wide")
+    st.title("Winter Olympics Medal Explorer (1924 – 2006) – Plotly Edition")
 
-    # -----------------------------------------------------
-    # 1) Load data & create sidebar filters
-    # -----------------------------------------------------
+    # --------------------------------------------------
+    # 1) LOAD DATA + SIDEBAR FILTERS
+    # --------------------------------------------------
     df = load_data()
 
-    st.sidebar.header("1) Data Filters")
+    st.sidebar.header("Filters")
 
     all_years = sorted(df["Year"].unique())
-    # Year range slider
-    min_year, max_year = st.sidebar.select_slider(
-        "Select Year Range:",
+    year_min, year_max = st.sidebar.select_slider(
+        "Year Range:",
         options=all_years,
         value=(min(all_years), max(all_years))
     )
 
-    # Sports
-    all_sports = sorted(df["Sport"].unique())
+    sports = sorted(df["Sport"].unique())
     selected_sports = st.sidebar.multiselect(
-        "Select Sports:",
-        options=all_sports,
-        default=all_sports
+        "Sports:",
+        options=sports,
+        default=sports
     )
 
-    # Countries
-    all_countries = sorted(df["Country"].unique())
+    countries = sorted(df["Country"].unique())
     selected_countries = st.sidebar.multiselect(
-        "Select Countries:",
-        options=all_countries,
-        default=all_countries
+        "Countries:",
+        options=countries,
+        default=countries
     )
 
-    # Genders
-    all_genders = ["M", "W", "X"]
+    genders = ["M", "W", "X"]
     selected_genders = st.sidebar.multiselect(
-        "Select Genders:",
-        options=all_genders,
-        default=all_genders
+        "Genders:",
+        options=genders,
+        default=genders
     )
 
-    # Filter in Python (no Altair signals)
+    # Filter data in Python
     df_filtered = df[
-        (df["Year"] >= min_year)
-        & (df["Year"] <= max_year)
+        (df["Year"] >= year_min)
+        & (df["Year"] <= year_max)
         & (df["Sport"].isin(selected_sports))
         & (df["Country"].isin(selected_countries))
         & (df["Gender"].isin(selected_genders))
     ]
 
-    st.sidebar.markdown(f"**Records after filtering:** {len(df_filtered)}")
+    st.sidebar.write(f"Records after filtering: {len(df_filtered)}")
 
-    # -----------------------------------------------------
-    # 2) AGGREGATIONS FOR CHARTS
-    # -----------------------------------------------------
-    # A) Area Chart: total medals by year
+    # --------------------------------------------------
+    # 2) AGGREGATIONS
+    # --------------------------------------------------
+    # (A) Total medals by year (for line chart)
     total_by_year = (
         df_filtered
         .groupby("Year")
         .size()
         .reset_index(name="TotalMedals")
+        .sort_values("Year")
     )
 
-    # B) Stacked Bar: medal distribution by year & medal type
+    # (B) Medal distribution by year & medal type (for stacked bar)
     medal_distribution = (
         df_filtered
         .groupby(["Year","Medal"])
         .size()
         .reset_index(name="Count")
+        .sort_values("Year")
     )
 
-    # C) Bubble Chart: (Year vs Country), sized by # of medals
-    year_country_medals = (
-        df_filtered
-        .groupby(["Year","Country"])
-        .size()
-        .reset_index(name="MedalsWon")
-    )
-
-    # D) Host City Summaries
+    # (C) City summary (for map)
     city_summary = (
         df_filtered
         .groupby(["Year","City","Latitude","Longitude"])
@@ -99,166 +88,196 @@ def main():
         .reset_index(name="CityMedals")
     )
 
-    # E) Medal Breakdown – but we won't do an in-chart selection.  
-    #    Instead, the user picks a single (Year, Country) in the sidebar.
-    breakdown_full = (
+    # (D) Year vs. Country (bubble chart)
+    year_country = (
+        df_filtered
+        .groupby(["Year","Country"])
+        .size()
+        .reset_index(name="MedalsWon")
+        .sort_values(["Year","Country"])
+    )
+
+    # (E) Breakdown by (Year, Country, Medal)
+    breakdown_df = (
         df_filtered
         .groupby(["Year","Country","Medal"])
         .size()
         .reset_index(name="NumMedals")
     )
 
-    # -----------------------------------------------------
-    # 3) Layout: Area Chart & Stacked Bar
-    # -----------------------------------------------------
-    st.subheader("2) Total Medals Over Time (Area Chart)")
+    # --------------------------------------------------
+    # 3) LINE CHART (TOTAL MEDALS) → SELECT YEAR
+    # --------------------------------------------------
+    st.subheader("1) Total Medals by Year (Click or Box/Lasso Select to Highlight Year)")
 
-    # AREA CHART
-    area_chart = (
-        alt.Chart(total_by_year)
-        .mark_area(opacity=0.6)
-        .encode(
-            x=alt.X("Year:O", sort=all_years, title="Year"),
-            y=alt.Y("TotalMedals:Q", title="Total Medals"),
-            tooltip=[
-                alt.Tooltip("Year:O"),
-                alt.Tooltip("TotalMedals:Q")
+    # Create line chart with Plotly Express
+    fig_line = px.line(
+        total_by_year,
+        x="Year",
+        y="TotalMedals",
+        markers=True,
+        title="Total Medals Over Time"
+    )
+
+    # If we want box-select or lasso-select, set those as default drag modes
+    fig_line.update_layout(dragmode="select")
+
+    # Show chart with streamlit-plotly-events to capture selection
+    selected_points_line = plotly_events(
+        fig_line,
+        click_event=True,
+        select_event=True,
+        override_height=500,
+        override_width="100%"
+    )
+    # `selected_points_line` is a list of dicts with info about selected points
+
+    # Extract the selected Year(s)
+    if selected_points_line:
+        # The user may have selected multiple points
+        # Let's gather the distinct years
+        selected_years = set()
+        for pt in selected_points_line:
+            # The x-value is the "Year"
+            # Usually it's stored under 'x', but let's print to confirm
+            # st.write(pt)  # debug
+            if "x" in pt:
+                selected_years.add(int(pt["x"]))
+        # We'll refine the medal_distribution to just those year(s)
+        st.info(f"**Selected Year(s)** from line chart: {sorted(selected_years)}")
+    else:
+        selected_years = set()  # if none selected, we show all years
+
+    # --------------------------------------------------
+    # 4) STACKED BAR: MEDAL DISTRIBUTION (per-year or selected year)
+    # --------------------------------------------------
+    st.subheader("2) Medal Distribution (Stacked Bar)")
+
+    if selected_years:
+        # Filter medal_distribution to only the selected year(s)
+        df_bar = medal_distribution[medal_distribution["Year"].isin(selected_years)]
+        bar_title = f"Medal Distribution for Selected Year(s): {sorted(selected_years)}"
+    else:
+        # Show all
+        df_bar = medal_distribution
+        bar_title = "Medal Distribution (All Filtered Years)"
+
+    fig_bar = px.bar(
+        df_bar,
+        x="Year",
+        y="Count",
+        color="Medal",
+        title=bar_title,
+        labels={"Count":"Medal Count"},
+    )
+    fig_bar.update_layout(barmode="stack")
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+    # --------------------------------------------------
+    # 5) HOST CITY MAP
+    # --------------------------------------------------
+    st.subheader("3) Host City Map")
+
+    # We'll just plot the city_summary as a scatter_geo:
+    if len(city_summary) == 0:
+        st.write("No host city data for the current filters.")
+    else:
+        fig_map = px.scatter_geo(
+            city_summary,
+            lat="Latitude",
+            lon="Longitude",
+            size="CityMedals",
+            hover_name="City",
+            hover_data={"Year":True,"CityMedals":True,"Latitude":False,"Longitude":False},
+            projection="natural earth",
+            title="Host Cities (size ~ total medals awarded that year)"
+        )
+        st.plotly_chart(fig_map, use_container_width=True)
+
+    # --------------------------------------------------
+    # 6) BUBBLE CHART (Year vs. Country) → SELECT (Year, Country) for Breakdown
+    # --------------------------------------------------
+    st.subheader("4) Bubble Chart: Year vs. Country (Click or Box Select)")
+
+    fig_bubble = px.scatter(
+        year_country,
+        x="Year",
+        y="Country",
+        size="MedalsWon",
+        size_max=40,
+        color="MedalsWon",
+        hover_data={"Year":True, "Country":True, "MedalsWon":True},
+        title="Bubble Chart: (Year vs. Country, Size=Medals Won)"
+    )
+    fig_bubble.update_layout(dragmode="select")  # allow box/lasso
+
+    selected_points_bubble = plotly_events(
+        fig_bubble,
+        click_event=True,
+        select_event=True,
+        override_height=600,
+        override_width="100%"
+    )
+
+    # Now let's see if a (Year, Country) was selected
+    # We can show a bar chart breakdown of medals for that pair
+    selected_pairs = set()
+    if selected_points_bubble:
+        for pt in selected_points_bubble:
+            # Usually year => 'x', country => 'y'
+            sel_year = int(pt["x"]) if "x" in pt else None
+            sel_country = pt["y"] if "y" in pt else None
+            if sel_year and sel_country:
+                selected_pairs.add((sel_year, sel_country))
+        if selected_pairs:
+            st.info(f"**Selected** (Year,Country) pairs: {selected_pairs}")
+
+    # --------------------------------------------------
+    # 7) MEDAL BREAKDOWN CHART
+    # --------------------------------------------------
+    st.subheader("5) Medal Breakdown for Selected (Year,Country) pairs")
+
+    # Filter breakdown_df for those pairs (could be multiple)
+    if selected_pairs:
+        df_break = pd.DataFrame()
+        for (yy, cc) in selected_pairs:
+            temp = breakdown_df[
+                (breakdown_df["Year"] == yy)
+                & (breakdown_df["Country"] == cc)
             ]
-        )
-        .properties(width=600, height=300)
-    )
-    st.altair_chart(area_chart, use_container_width=True)
+            df_break = pd.concat([df_break, temp], ignore_index=True)
+        if len(df_break) == 0:
+            st.write("No data for the selected pairs.")
+        else:
+            fig_break = px.bar(
+                df_break,
+                x="Medal",
+                y="NumMedals",
+                color="Medal",
+                facet_col="Country",   # separate columns if multiple countries selected
+                facet_col_wrap=3,
+                title="Medal Breakdown",
+                labels={"NumMedals":"# of Medals","Medal":""},
+            )
+            st.plotly_chart(fig_break, use_container_width=True)
+    else:
+        st.write("Select one or more (Year, Country) in the bubble chart above to see the breakdown.")
 
-    st.subheader("3) Medal Distribution by Year (Stacked Bar)")
-    stacked_bar = (
-        alt.Chart(medal_distribution)
-        .mark_bar()
-        .encode(
-            x=alt.X("Year:O", sort=all_years, title="Year"),
-            y=alt.Y("Count:Q", stack="normalize", title="Proportion of Medals"),
-            color=alt.Color("Medal:N", legend=alt.Legend(title="Medal")),
-            tooltip=[
-                alt.Tooltip("Year:O"),
-                alt.Tooltip("Medal:N"),
-                alt.Tooltip("Count:Q")
-            ]
-        )
-        .properties(width=600, height=300)
-    )
-    st.altair_chart(stacked_bar, use_container_width=True)
-
-    # -----------------------------------------------------
-    # 4) HOST CITY MAP
-    # -----------------------------------------------------
-    st.subheader("4) Host City Map")
-
-    # We'll just plot all filtered host cities. (No brushing)
-    world = alt.topo_feature(data.world_110m.url, feature="countries")
-    base_map = (
-        alt.Chart(world)
-        .mark_geoshape(fill="lightgray", stroke="white")
-        .properties(width=700, height=400)
-        .project("naturalEarth1")
-    )
-
-    city_points = (
-        alt.Chart(city_summary)
-        .mark_circle(color="red", opacity=0.6)
-        .encode(
-            longitude=alt.Longitude("Longitude:Q"),
-            latitude=alt.Latitude("Latitude:Q"),
-            size=alt.Size("CityMedals:Q", scale=alt.Scale(range=[0,1000])),
-            tooltip=[
-                alt.Tooltip("City:N"),
-                alt.Tooltip("Year:O"),
-                alt.Tooltip("CityMedals:Q")
-            ]
-        )
-    )
-    city_map = base_map + city_points
-    st.altair_chart(city_map, use_container_width=True)
-
-    # -----------------------------------------------------
-    # 5) BUBBLE CHART (Year vs Country)
-    # -----------------------------------------------------
-    st.subheader("5) Bubble Chart of (Year vs. Country)")
-
-    bubble_chart = (
-        alt.Chart(year_country_medals)
-        .mark_circle()
-        .encode(
-            x=alt.X("Year:O", sort=all_years, title="Year"),
-            y=alt.Y("Country:N", sort=alt.SortField("Country", order="ascending")),
-            size=alt.Size("MedalsWon:Q", scale=alt.Scale(range=[0,1000])),
-            color=alt.Color("MedalsWon:Q", scale=alt.Scale(scheme="blues"), legend=None),
-            tooltip=[
-                alt.Tooltip("Year:O"),
-                alt.Tooltip("Country:N"),
-                alt.Tooltip("MedalsWon:Q")
-            ]
-        )
-        .properties(width=700, height=400)
-    )
-    st.altair_chart(bubble_chart, use_container_width=True)
-
-    # -----------------------------------------------------
-    # 6) Medal Breakdown (Year + Country from Sidebar)
-    # -----------------------------------------------------
-    # Instead of an Altair-based single_select, let the user pick from a dropdown.
-    st.subheader("6) Medal Breakdown for a Selected (Year, Country)")
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        # Year selection
-        possible_years = sorted(df_filtered["Year"].unique())
-        selected_breakdown_year = st.selectbox(
-            "Select Year for Breakdown:",
-            options=possible_years
-        )
-
-    with col_b:
-        # Country selection
-        possible_countries = sorted(df_filtered["Country"].unique())
-        selected_breakdown_country = st.selectbox(
-            "Select Country for Breakdown:",
-            options=possible_countries
-        )
-
-    # Filter breakdown data
-    breakdown_filtered = breakdown_full[
-        (breakdown_full["Year"] == selected_breakdown_year) &
-        (breakdown_full["Country"] == selected_breakdown_country)
-    ]
-
-    breakdown_chart = (
-        alt.Chart(breakdown_filtered)
-        .mark_bar()
-        .encode(
-            x=alt.X("Medal:N", sort=["Gold","Silver","Bronze"]),
-            y=alt.Y("NumMedals:Q"),
-            color=alt.Color("Medal:N", legend=None),
-            tooltip=[
-                alt.Tooltip("Year:O"),
-                alt.Tooltip("Country:N"),
-                alt.Tooltip("Medal:N"),
-                alt.Tooltip("NumMedals:Q")
-            ]
-        )
-        .properties(width=300, height=300)
-    )
-
-    st.altair_chart(breakdown_chart, use_container_width=False)
-
-    # -----------------------------------------------------
-    # 7) Data Table
-    # -----------------------------------------------------
+    # --------------------------------------------------
+    # 8) DATA TABLE
+    # --------------------------------------------------
     with st.expander("View Filtered Data Table"):
         st.dataframe(df_filtered)
 
     st.markdown("---")
-    # st.markdown(
-        
-    # )
+    st.markdown(
+        "**Interactivity:**\n"
+        "1. **Line Chart**: click or box-select across years → that filters the stacked bar to those selected years.\n"
+        "2. **Bubble Chart**: click or box-select over points to pick (Year,Country). The breakdown bar shows details.\n"
+        "3. The map & line chart do not do in-chart brushing that modifies other charts (besides the line → stacked bar), but this is a template you can expand.\n"
+        "\n"
+        "No hidden Altair param signals are used—Plotly events are captured via `streamlit-plotly-events`."
+    )
 
 if __name__ == "__main__":
     main()
