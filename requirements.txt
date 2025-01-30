@@ -1,4 +1,4 @@
 streamlit
 pandas
-altair
+altair==5.0.1
 vega_datasets
