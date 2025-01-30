@@ -1,4 +1,5 @@
-streamlit
-pandas
 vega_datasets
 altair==5.5.0
+streamlit 
+plotly 
+pandas
