@@ -9,7 +9,8 @@ from vega_datasets import data  # For world map background
 
 @st.cache_data
 def load_data():
-    df = pd.read_json("olympics.json")  # Ensure correct file path
+    df = pd.read_json("/mnt/data/olympics.json")
+    df["Year"] = df["Year"].astype(int)  # Ensure Year is integer
     return df
 
 def main():
@@ -92,8 +93,8 @@ def main():
     # -------------------------------------------------------------------
     # 4) ALT.SELECTION OBJECTS
     # -------------------------------------------------------------------
-    year_brush = alt.selection_interval(name="year_brush", encodings=["x"])
-    select_single = alt.selection_single(name="Select", fields=["Year", "Country"], empty="none")
+    year_brush = alt.selection_interval(encodings=["x"], name="year_brush")
+    select_single = alt.selection_single(fields=["Year", "Country"], empty="none", name="Select")
 
     # -------------------------------------------------------------------
     # 5) INTERACTIVE CHARTS
