@@ -9,7 +9,7 @@ from vega_datasets import data  # For world map background
 
 @st.cache_data
 def load_data():
-    df = pd.read_json("/mnt/data/olympics.json")
+    df = pd.read_json("olympics.json")
     df["Year"] = df["Year"].astype(int)  # Ensure Year is integer
     return df
 
