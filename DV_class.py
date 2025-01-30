@@ -233,12 +233,7 @@ def main():
         "**Usage tips:**\n"
         "1. **Brush** across the *area chart* to filter a year range → Notice the stacked bar & map update.\n"
         "2. **Click** a bubble in the bubble chart to see a *medal breakdown* for that selection.\n"
-        "3. If you still get 'unrecognized signal name' errors, try installing Altair 4.2.2 or 5.0.1.\n"
-        "   ```bash\n"
-        "   pip install --upgrade altair==4.2.2\n"
-        "   # or\n"
-        "   pip install --upgrade altair==5.0.1\n"
-        "   ```"
+
     )
 
 if __name__ == "__main__":
