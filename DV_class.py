@@ -9,7 +9,7 @@ from vega_datasets import data  # For world map background
 
 @st.cache_data
 def load_data():
-    df = pd.read_json("/mnt/data/olympics.json")  # Ensure correct file path
+    df = pd.read_json("olympics.json")  # Ensure correct file path
     return df
 
 def main():
