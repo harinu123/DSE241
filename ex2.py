@@ -14,7 +14,6 @@ def main():
 
     df = load_data()
 
-
     st.sidebar.header("1) Data Filters")
 
     all_years = sorted(df["Year"].unique())
@@ -45,6 +44,7 @@ def main():
         default=all_genders
     )
 
+    # Filter DataFrame in Python
     df_filtered = df[
         (df["Year"] >= min_year)
         & (df["Year"] <= max_year)
@@ -55,7 +55,9 @@ def main():
 
     st.sidebar.markdown(f"**Records after filtering:** {len(df_filtered)}")
 
-
+    # -----------------------------------------------------
+    # Aggregations
+    # -----------------------------------------------------
     total_by_year = (
         df_filtered
         .groupby("Year")
@@ -91,7 +93,6 @@ def main():
         .reset_index(name="NumMedals")
     )
 
-
     st.subheader("2) Total Medals Over Time (Area Chart)")
 
     zoom = alt.selection_interval(bind='scales', encodings=['x'])
@@ -100,7 +101,7 @@ def main():
         alt.Chart(total_by_year)
         .mark_area(opacity=0.6)
         .encode(
-            x=alt.X("Year:O", sort=sorted(total_by_year["Year"].unique()), title="Year"),
+            x=alt.X("Year:O", title="Year", sort=sorted(total_by_year["Year"].unique())),
             y=alt.Y("TotalMedals:Q", title="Total Medals"),
             tooltip=[alt.Tooltip("Year:O"), alt.Tooltip("TotalMedals:Q")]
         )
@@ -108,7 +109,6 @@ def main():
         .properties(width=600, height=300)
     )
     st.altair_chart(area_chart.interactive(), use_container_width=True)
-
 
     st.subheader("3) Medal Distribution by Year (Stacked Bar)")
 
@@ -128,7 +128,7 @@ def main():
             color=alt.Color(
                 "Medal:N",
                 legend=alt.Legend(title="Medal"),
-                scale=alt.Scale(scheme="Set2")
+                scale=alt.Scale(scheme="set2")
             ),
             tooltip=["Year:O", "Medal:N", "Count:Q"]
         )
@@ -156,17 +156,12 @@ def main():
             longitude=alt.Longitude("Longitude:Q"),
             latitude=alt.Latitude("Latitude:Q"),
             size=alt.Size("CityMedals:Q", scale=alt.Scale(range=[0, 1000])),
-            tooltip=[
-                alt.Tooltip("City:N"),
-                alt.Tooltip("Year:O"),
-                alt.Tooltip("CityMedals:Q")
-            ]
+            tooltip=["City:N", "Year:O", "CityMedals:Q"]
         )
         .interactive()
     )
     city_map = base_map + city_points
     st.altair_chart(city_map, use_container_width=True)
-
 
     st.subheader("5) Bubble Chart of (Year vs. Country)")
 
@@ -174,14 +169,13 @@ def main():
         alt.Chart(year_country_medals)
         .mark_circle()
         .encode(
-            x=alt.X("Year:O", title="Year", sort=sorted(year_country_medals["Year"].unique())),
+            x=alt.X("Year:O", sort=sorted(year_country_medals["Year"].unique()), title="Year"),
             y=alt.Y("Country:N", sort=alt.SortField("Country", order="ascending")),
-            size=alt.Size("MedalsWon:Q", scale=alt.Scale(range=[0, 1000])),
+            size=alt.Size("MedalsWon:Q", scale=alt.Scale(range=[0,1000])),
             color=alt.Color(
                 "MedalsWon:Q",
                 legend=None,
-                # Sequential ColorBrewer palette for numeric data
-                scale=alt.Scale(scheme="YlGnBu")
+                scale=alt.Scale(scheme="yellowgreenblue")
             ),
             tooltip=["Year:O", "Country:N", "MedalsWon:Q"]
         )
@@ -213,7 +207,7 @@ def main():
     ]
 
 
-    medal_palette = ["#1b9e77","#d95f02","#7570b3"]  # 3 distinct colors from "Dark2"
+    medal_palette = ["#1b9e77", "#d95f02", "#7570b3"]
 
     breakdown_chart = (
         alt.Chart(breakdown_filtered)
@@ -233,18 +227,16 @@ def main():
         )
         .properties(width=300, height=300)
     )
-
     st.altair_chart(breakdown_chart, use_container_width=False)
-
 
     with st.expander("View Filtered Data Table"):
         st.dataframe(df_filtered)
 
     st.markdown("---")
     st.markdown(
-        "**Note:** This version uses ColorBrewer palettes (Set2, YlGnBu, Dark2) "
-        "to ensure distinct color encodings for typical (non–colorblind) viewing. "
-        "In a separate version, these palettes can be tested and adjusted for color vision deficiencies."
+        "**Note**: We use lowercase ColorBrewer scheme names (`'set2'`, `'yellowgreenblue'`, etc.) "
+        "which are recognized by Altair v5. This ensures color scale validity and avoids schema "
+        "validation errors."
     )
 
 if __name__ == "__main__":
