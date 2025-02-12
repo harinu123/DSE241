@@ -8,6 +8,7 @@ import requests
 # -------------------------------
 # Data Loading and Preparation
 # -------------------------------
+bjhbjhb
 
 # Load the CO₂ emissions and population data.
 df = pd.read_csv("co2-population.csv")
