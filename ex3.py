@@ -8,7 +8,7 @@ st.set_page_config(page_title="US CO₂ Emissions & Population Dashboard", layou
 
 st.title("U.S. CO₂ Emissions & Population Dashboard")
 st.markdown("""
-Exersize 3 for my DSE Data viz course
+
 here is a dashboard that allows you to explore state-level CO₂ emissions data (by sector) alongside population data for U.S. states, spanning 1990 to 2010.
 Use the controls in the sidebar to:
 - **Map View**: Visualize the spatial distribution of emissions or population for a chosen year.
