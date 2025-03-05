@@ -109,7 +109,7 @@ st.subheader("Interactive Network Visualization")
 components.html(html_content, height=600, width=800)
 
 st.markdown("""
-### Discussion and Findings
+### Findings, and Cool features
 
 - **Expressiveness of the Visual Idiom:**  
   The node-link visualization clearly delineates each sheep as a node with directed edges indicating dominance interactions. Interactivity (zoom, pan, and hover tooltips) enables detailed exploration of the network.
