@@ -99,8 +99,8 @@ var options = {
     "forceAtlas2Based": {
       "gravitationalConstant": -50,
       "centralGravity": 0.01,
-      "springLength": 100,
-      "springConstant": 0.08
+      "springLength": 600,
+      "springConstant": 0.0008
     },
     "minVelocity": 0.75,
     "solver": "forceAtlas2Based"
