@@ -12,7 +12,6 @@ Nodes represent individual sheep (with age data), and directed edges represent o
 The visualization is augmented by computing the in‐degree and out‐degree for each node.
 """)
 
-# Load the data (ensure sheep_age.csv and sheep_edges.csv are in the same directory as this script)
 @st.cache
 def load_data():
     age_df = pd.read_csv("sheep_age.csv")
@@ -27,7 +26,6 @@ st.dataframe(age_df)
 st.subheader("Sheep Edges Data")
 st.dataframe(edges_df)
 
-# Build the directed graph using NetworkX
 G = nx.DiGraph()
 
 # Add nodes with the age attribute
@@ -105,7 +103,7 @@ var options = {
 }
 """)
 
-# Save and read the generated network graph HTML file
+
 net.save_graph("sheep_network.html")
 with open("sheep_network.html", "r", encoding="utf-8") as f:
     html_content = f.read()
