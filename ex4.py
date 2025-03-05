@@ -7,15 +7,15 @@ st.title("Bighorn Sheep Dominance Network Visualization from GraphML")
 
 st.markdown("""
 This interactive visualization displays the dominance relationships among bighorn sheep.
-The graph data is loaded from a GraphML file (sheep_ml.graphml.xml) that includes:
+The graph data is loaded from a GraphML file (`sheep_ml.graphml.xml`) that includes:
 - A node attribute `age`
 - An edge attribute `weight`
 
 Nodes are augmented with computed in-degree and out-degree metrics. Hover over a node to see details.
 """)
 
-# Load the graph from the GraphML file
-@st.cache(allow_output_mutation=True)
+# Use st.cache_data to cache the graph loading
+@st.cache_data
 def load_graph():
     # Read the GraphML file
     G = nx.read_graphml("sheep_ml.graphml.xml")
@@ -114,7 +114,7 @@ with open("sheep_network.html", "r", encoding="utf-8") as f:
     html_content = f.read()
 
 st.subheader("Interactive Network Visualization")
-components.html(html_content, height=600, width="100%")
+components.html(html_content, height=600, width=800)
 
 st.markdown("""
 ### Discussion and Findings
